@@ -5,7 +5,7 @@ import Date exposing (Date)
 
 
 type alias Match =
-    { matchId : Int
+    { matchId : MatchId
     , homeTeam : Country
     , awayTeam : Country
     , date : Date
@@ -13,6 +13,8 @@ type alias Match =
     , predictedResult : Maybe MatchResult
     , actualResult : Maybe MatchResult
     }
+
+type alias MatchId = Int
 
 
 type alias MatchResult =
@@ -26,6 +28,8 @@ type alias Group =
     , countries : List Country
     , matches : List Match
     }
+
+type alias GroupName = String
 
 type alias GroupCountryResult =
     { country : Country

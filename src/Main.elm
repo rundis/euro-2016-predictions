@@ -1,13 +1,15 @@
 port module Main exposing (..)
 
 import Html exposing (..)
+import Html.App as App
 import Html.App exposing (program)
-import Html.Events exposing (onClick, onInput)
 import Html.Attributes exposing (..)
 import Time
 import Bootstrap
 import Types exposing (..)
-import Date
+import GroupForm
+import Dict exposing (Dict)
+import Maybe
 
 main : Program Never
 main =
@@ -25,12 +27,19 @@ main =
 
 type alias Model =
     { groups : List Group
+    , groupForms : Dict GroupName GroupForm.Model
     }
 
 
 init : ( Model, Cmd msg )
 init =
-    ( Model Bootstrap.initialGroupSeed, Cmd.none )
+    let
+        groups = Bootstrap.initialGroupSeed
+        groupForms =
+            List.map (\g -> (g.name, GroupForm.init g)) groups
+                |> Dict.fromList
+    in
+        ( Model groups groupForms, Cmd.none )
 
 
 
@@ -40,6 +49,7 @@ init =
 type Msg
     = None
     | Tick
+    | GroupFormMsg GroupName GroupForm.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -50,6 +60,21 @@ update msg model =
 
         Tick ->
             ( model, Cmd.none )
+
+        GroupFormMsg mId subMsg ->
+            let
+                res =
+                    Dict.get mId model.groupForms
+                        |> Maybe.map (GroupForm.update subMsg)
+            in
+                case res of
+                    Nothing ->
+                        ( model, Cmd.none )
+
+                    Just ( subMdl, subCmd ) ->
+                        ( { model | groupForms = Dict.insert mId subMdl model.groupForms }
+                        , Cmd.map (GroupFormMsg mId) subCmd
+                        )
 
 
 port alert : String -> Cmd msg
@@ -74,71 +99,10 @@ subscriptions model =
 view : Model -> Html.Html Msg
 view model =
     div [ class "container" ]
-        (List.map groupView model.groups)
+        (List.map groupViewItem (Dict.toList model.groupForms))
 
 
-groupView : Group -> Html.Html Msg
-groupView group =
-    div [ class "row" ]
-        [ h3 [] [ text ("Group " ++ group.name) ]
-        , div [ class "col-sm-6 well" ]
-            [ matchesTable group.matches ]
-        , div [ class "col-sm-6"] [tablePredictions group]
-        ]
+groupViewItem : (GroupName, GroupForm.Model) -> Html.Html Msg
+groupViewItem (groupName, groupModel) =
+    App.map (GroupFormMsg groupName) (GroupForm.view groupModel)
 
-
-matchesTable : List Match -> Html.Html Msg
-matchesTable matches =
-    table [ class "table table-condensed" ]
-        [ tbody [] (List.map matchRow matches) ]
-
-
-matchRow : Match -> Html.Html Msg
-matchRow match =
-    tr []
-        [ td [] [text (formatDate match.date)]
-        , td [style [("text-align", "right")]] [text (toString match.homeTeam)]
-        , td [] [input [class "form-control input-sm"] []]
-        , td [] [input [class "form-control input-sm"] []]
-        , td [] [text (toString match.awayTeam)]
-        ]
-
-
-tablePredictions : Group -> Html.Html Msg
-tablePredictions group =
-    table
-        [class "table table-condensed"]
-        [ thead
-            []
-            [ tr
-                []
-                [ th [] [text "Country"]
-                , th [] [text "W"]
-                , th [] [text "D"]
-                , th [] [text "L"]
-                , th [] [text "Gd"]
-                , th [] [text "Pts"]
-                ]
-            ]
-        , tbody
-            []
-            (List.map predictionRow (Bootstrap.calcPredictedGroupResult group))
-        ]
-
-
-predictionRow :  GroupCountryResult -> Html.Html Msg
-predictionRow res =
-    tr
-        []
-        [ td [] [text (toString res.country)]
-        , td [] [text (toString res.wins)]
-        , td [] [text (toString res.draws)]
-        , td [] [text (toString res.losses)]
-        , td [] [text (toString res.goalDifference)]
-        , td [] [text (toString res.points)]
-        ]
-
-
-formatDate : Date.Date -> String
-formatDate date =
-    (toString <| Date.day date) ++ "." ++ (toString <| Date.month date)
